@@ -1,0 +1,72 @@
+# ==============================================================================
+# FocusBridge Root .gitignore
+# ==============================================================================
+
+# Dependencies
+node_modules/
+/.pnp
+.pnp.js
+
+# Environment Variables & Secrets (STRICTLY FORBIDDEN FROM COMMITS)
+.env
+.env.*
+.env.local
+.env.*.local
+.env.development
+.env.test
+.env.production
+.env.staging
+*.env
+*.env.*
+# Allow safe template files
+!.env.example
+!*.env.example
+
+# Production & Development Builds
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# Testing & Coverage
+coverage/
+.nyc_output/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS-generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# IDE & Editor directories
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# Backups & Temporary files
+*.backup
+*.bak
+*.tmp
+*.sqlite
+*.sqlite3
+*.db
+Phase 2/
+focusbridge_phase*
