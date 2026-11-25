@@ -1,4 +1,10 @@
 export function getApiBase(): string {
+  // If running on the server (SSR / Server Component / Route Handler) with Vercel service binding
+  if (typeof window === 'undefined' && process.env.BACKEND_URL) {
+    const backendBase = process.env.BACKEND_URL.replace(/\/+$/, '');
+    return `${backendBase}/api`;
+  }
+
   const configured = process.env.NEXT_PUBLIC_API_URL;
   if (typeof window !== 'undefined') {
     if (configured) {
@@ -10,8 +16,13 @@ export function getApiBase(): string {
       }
       return configured;
     }
-    const host = window.location.hostname || 'localhost';
-    return `http://${host}:4000/api`;
+    // In standalone local dev on port 3000, backend is on port 4000
+    if (window.location.port === '3000') {
+      const host = window.location.hostname || 'localhost';
+      return `http://${host}:4000/api`;
+    }
+    // In production on Vercel or vercel dev, same-origin /api rewrite routes to backend
+    return `${window.location.origin}/api`;
   }
   return configured || 'http://localhost:4000/api';
 }

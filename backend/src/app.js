@@ -23,6 +23,12 @@ function createApp() {
     'http://localhost:3001',
     'http://127.0.0.1:3001',
   ]);
+  if (process.env.VERCEL_URL) {
+    allowedOrigins.add(`https://${process.env.VERCEL_URL}`);
+  }
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    allowedOrigins.add(`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`);
+  }
 
   app.use(
     cors({
