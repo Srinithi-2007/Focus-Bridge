@@ -24,6 +24,16 @@ function errorHandler(err, req, res, _next) {
   } else if (err && err.type === 'entity.parse.failed') {
     status = 400;
     message = 'Request body is not valid JSON';
+  } else if (
+    err &&
+    (err.name === 'MongooseServerSelectionError' ||
+      err.name === 'MongoServerSelectionError' ||
+      err.name === 'MongoNetworkError' ||
+      err.name === 'MongoTimeoutError' ||
+      (typeof err.message === 'string' && err.message.includes('buffering timed out')))
+  ) {
+    status = 503;
+    message = 'Database service is currently unavailable. Please check your database connection or Atlas network access.';
   }
 
   if (status >= 500) {

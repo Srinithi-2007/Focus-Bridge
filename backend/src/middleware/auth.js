@@ -33,6 +33,9 @@ async function authenticate(req, _res, next) {
       throw new AppError(401, 'Session is invalid or expired');
     }
 
+    const { connectDB } = require('../config/db');
+    await connectDB();
+
     const user = await User.findById(payload.sub);
     if (!user || user.status !== 'active') {
       throw new AppError(401, 'Account is not active');

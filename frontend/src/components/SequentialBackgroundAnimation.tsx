@@ -103,7 +103,7 @@ export default function SequentialBackgroundAnimation({
 
     // Load Frame 0 first for immediate rendering
     const img0 = new Image();
-    img0.src = `/api/animation-frame/0`;
+    img0.src = `/animation/frame_000.jpg`;
     img0.onload = () => {
       imagesRef.current[0] = img0;
       setFirstFrameLoaded(true);
@@ -111,10 +111,11 @@ export default function SequentialBackgroundAnimation({
       renderCurrent();
     };
 
-    // Preload remaining frames
+    // Preload remaining frames from static public assets
     for (let i = 1; i < totalFrames; i++) {
       const img = new Image();
-      img.src = `/api/animation-frame/${i}`;
+      const frameNum = String(i).padStart(3, '0');
+      img.src = `/animation/frame_${frameNum}.jpg`;
       img.onload = () => {
         imagesRef.current[i] = img;
       };

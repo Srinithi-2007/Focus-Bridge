@@ -5,21 +5,6 @@ const { createApp } = require('./app');
 
 const app = createApp();
 
-// Ensure database connection is active for serverless/Vercel request invocations
-let dbInitPromise = null;
-app.use(async (_req, _res, next) => {
-  try {
-    if (!dbInitPromise) {
-      dbInitPromise = connectDB();
-    }
-    await dbInitPromise;
-    next();
-  } catch (err) {
-    dbInitPromise = null;
-    next(err);
-  }
-});
-
 async function start() {
   await connectDB();
   const server = app.listen(env.port, '0.0.0.0', () => {
@@ -36,4 +21,3 @@ if (require.main === module) {
 }
 
 module.exports = app;
-

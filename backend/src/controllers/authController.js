@@ -8,6 +8,7 @@ const { signSessionToken } = require('../services/tokenService');
 const { sendMail } = require('../services/mailer');
 const { COOKIE_NAME, CSRF_COOKIE_NAME } = require('../middleware/auth');
 const env = require('../config/env');
+const { connectDB } = require('../config/db');
 const Organization = require('../models/Organization');
 const User = require('../models/User');
 const Invitation = require('../models/Invitation');
@@ -91,6 +92,7 @@ function clearAuthCookies(res) {
 }
 
 async function registerOrganization(req, res) {
+  await connectDB();
   const { organizationName, firstName, lastName, email, password } = req.body;
   if (await User.exists({ email })) {
     throw new AppError(409, 'An account with this email already exists');
@@ -111,6 +113,7 @@ async function registerOrganization(req, res) {
 }
 
 async function login(req, res) {
+  await connectDB();
   const { email, password } = req.body;
   // Role is never taken from the request: it is read from the stored user record.
   const user = await User.findOne({ email }).select('+passwordHash');
@@ -152,6 +155,7 @@ async function me(req, res) {
 }
 
 async function forgotPassword(req, res) {
+  await connectDB();
   const user = await User.findOne({ email: req.body.email, status: 'active' });
   if (user) {
     const { raw, hash } = createOpaqueToken();
@@ -170,6 +174,7 @@ async function forgotPassword(req, res) {
 }
 
 async function resetPassword(req, res) {
+  await connectDB();
   const hash = hashToken(req.body.token);
   const user = await User.findOne({
     passwordResetTokenHash: hash,
@@ -186,6 +191,7 @@ async function resetPassword(req, res) {
 }
 
 async function findValidInvitation(rawToken) {
+  await connectDB();
   const invitation = await Invitation.findOne({
     tokenHash: hashToken(rawToken),
     acceptedAt: null,
