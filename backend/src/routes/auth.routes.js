@@ -23,8 +23,19 @@ router.post('/logout', asyncHandler(c.logout));
 router.get('/csrf', asyncHandler(c.getCsrfToken));
 router.get('/me', asyncHandler(authenticate), asyncHandler(c.me));
 router.post('/forgot-password', authLimiter, validate(c.schemas.forgotSchema), asyncHandler(c.forgotPassword));
+router.post('/validate-reset-token', authLimiter, validate(c.schemas.validateResetTokenSchema), asyncHandler(c.validateResetToken));
 router.post('/reset-password', authLimiter, validate(c.schemas.resetSchema), asyncHandler(c.resetPassword));
 router.get('/invitations/:token', asyncHandler(c.getInvitation));
 router.post('/invitations/accept', authLimiter, validate(c.schemas.acceptInviteSchema), asyncHandler(c.acceptInvitation));
+router.get('/test-smtp', asyncHandler(authenticate), asyncHandler(async (_req, res) => {
+  const { verifySmtpConnection } = require('../services/mailer');
+  const result = await verifySmtpConnection();
+  res.json({ status: 'ok', smtp: result });
+}));
+router.post('/test-smtp', asyncHandler(authenticate), asyncHandler(async (_req, res) => {
+  const { verifySmtpConnection } = require('../services/mailer');
+  const result = await verifySmtpConnection();
+  res.json({ status: 'ok', smtp: result });
+}));
 
 module.exports = router;

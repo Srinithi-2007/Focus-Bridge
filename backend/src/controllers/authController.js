@@ -5,7 +5,13 @@ const AppError = require('../utils/AppError');
 const { passwordSchema, hashPassword, verifyPassword } = require('../utils/password');
 const { createOpaqueToken, hashToken } = require('../utils/tokens');
 const { signSessionToken } = require('../services/tokenService');
-const { sendMail } = require('../services/mailer');
+const {
+  sendMail,
+  sendWelcomeEmail,
+  sendSignInNotification,
+  sendPasswordResetEmail,
+  sendPasswordChangedEmail,
+} = require('../services/mailer');
 const { COOKIE_NAME, CSRF_COOKIE_NAME } = require('../middleware/auth');
 const env = require('../config/env');
 const { connectDB } = require('../config/db');
@@ -33,6 +39,10 @@ const forgotSchema = z.object({ email: emailSchema });
 const resetSchema = z.object({
   token: z.string().min(32).max(256),
   password: passwordSchema,
+});
+
+const validateResetTokenSchema = z.object({
+  token: z.string().min(32).max(256),
 });
 
 const acceptInviteSchema = z.object({
@@ -109,6 +119,13 @@ async function registerOrganization(req, res) {
     passwordHash: await hashPassword(password),
   });
 
+  // Feature 1: Account Creation Confirmation email (awaited so serverless container does not freeze)
+  try {
+    await sendWelcomeEmail({ to: user.email, firstName: user.firstName });
+  } catch (err) {
+    console.error('[mailer] Failed to send welcome email:', err.message);
+  }
+
   res.status(201).json(sessionResponse(user, res));
 }
 
@@ -131,6 +148,18 @@ async function login(req, res) {
 
   user.lastLoginAt = new Date();
   await user.save();
+
+  // Feature 2: Successful Sign-In Notification email (awaited so serverless container does not freeze)
+  try {
+    await sendSignInNotification({
+      to: user.email,
+      firstName: user.firstName,
+      loginDate: user.lastLoginAt,
+    });
+  } catch (err) {
+    console.error('[mailer] Failed to send sign-in notification:', err.message);
+  }
+
   res.json(sessionResponse(user, res));
 }
 
@@ -160,17 +189,34 @@ async function forgotPassword(req, res) {
   if (user) {
     const { raw, hash } = createOpaqueToken();
     user.passwordResetTokenHash = hash;
-    user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000);
+    // Feature 3: Set short single-use expiration time (30 minutes)
+    user.passwordResetExpires = new Date(Date.now() + 30 * 60 * 1000);
     await user.save();
-    const link = `${env.clientUrl}/login?reset=${raw}`;
-    await sendMail({
+
+    await sendPasswordResetEmail({
       to: user.email,
-      subject: 'Reset your FocusBridge password',
-      text: `Reset link (valid 1 hour): ${link}`,
+      firstName: user.firstName,
+      resetToken: raw,
+    }).catch((err) => {
+      console.error('[mailer] Failed to send password reset email:', err.message);
     });
   }
-  // Same response whether or not the account exists, to avoid account enumeration.
+  // Generic response to prevent account enumeration
   res.json({ message: 'If an active account exists for that email, a reset link has been sent.' });
+}
+
+async function validateResetToken(req, res) {
+  await connectDB();
+  const hash = hashToken(req.body.token);
+  const user = await User.findOne({
+    passwordResetTokenHash: hash,
+    passwordResetExpires: { $gt: new Date() },
+    status: 'active',
+  });
+  if (!user) {
+    throw new AppError(400, 'This reset link is invalid or has expired');
+  }
+  res.json({ valid: true });
 }
 
 async function resetPassword(req, res) {
@@ -187,6 +233,17 @@ async function resetPassword(req, res) {
   user.passwordResetTokenHash = undefined;
   user.passwordResetExpires = undefined;
   await user.save();
+
+  // Feature 4: Password changed confirmation email (awaited so serverless container does not freeze)
+  try {
+    await sendPasswordChangedEmail({
+      to: user.email,
+      firstName: user.firstName,
+    });
+  } catch (err) {
+    console.error('[mailer] Failed to send password changed confirmation:', err.message);
+  }
+
   res.json({ message: 'Password updated. You can now sign in.' });
 }
 
@@ -235,6 +292,13 @@ async function acceptInvitation(req, res) {
   invitation.acceptedAt = new Date();
   await invitation.save();
 
+  // Feature 1: Account creation confirmation email for invited users (awaited so serverless container does not freeze)
+  try {
+    await sendWelcomeEmail({ to: user.email, firstName: user.firstName });
+  } catch (err) {
+    console.error('[mailer] Failed to send welcome email:', err.message);
+  }
+
   if (isCoach) {
     return res.status(201).json({
       message: 'Account created. An administrator must approve your coach account before you can sign in.',
@@ -245,13 +309,14 @@ async function acceptInvitation(req, res) {
 }
 
 module.exports = {
-  schemas: { registerOrgSchema, loginSchema, forgotSchema, resetSchema, acceptInviteSchema },
+  schemas: { registerOrgSchema, loginSchema, forgotSchema, resetSchema, acceptInviteSchema, validateResetTokenSchema },
   registerOrganization,
   login,
   logout,
   getCsrfToken,
   me,
   forgotPassword,
+  validateResetToken,
   resetPassword,
   getInvitation,
   acceptInvitation,
