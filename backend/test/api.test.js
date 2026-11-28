@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
-const { createApp } = require('../src/app');
+const { createApp, normalizeOrigin } = require('../src/app');
 
 function startServer() {
   const app = createApp();
@@ -21,7 +21,7 @@ async function request(server, method, path, body, headers = {}) {
       (res) => {
         let text = '';
         res.on('data', (c) => (text += c));
-        res.on('end', () => resolve({ status: res.statusCode, body: text ? JSON.parse(text) : null }));
+        res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: text ? JSON.parse(text) : null }));
       }
     );
     req.on('error', reject);
@@ -70,6 +70,88 @@ test('a forged token with the wrong signature is rejected', async () => {
       Authorization: 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.invalidsig',
     });
     assert.equal(r.status, 401);
+  } finally {
+    server.close();
+  }
+});
+
+test('normalizeOrigin helper removes trailing slashes and normalizes case', () => {
+  assert.equal(normalizeOrigin('https://focus-bridge-seven.vercel.app'), 'https://focus-bridge-seven.vercel.app');
+  assert.equal(normalizeOrigin('https://focus-bridge-seven.vercel.app/'), 'https://focus-bridge-seven.vercel.app');
+  assert.equal(normalizeOrigin('https://focus-bridge-seven.vercel.app///'), 'https://focus-bridge-seven.vercel.app');
+  assert.equal(normalizeOrigin('HTTPS://FOCUS-BRIDGE-SEVEN.VERCEL.APP/'), 'https://focus-bridge-seven.vercel.app');
+  assert.equal(normalizeOrigin('http://localhost:3000/'), 'http://localhost:3000');
+  assert.equal(normalizeOrigin(''), '');
+  assert.equal(normalizeOrigin(null), '');
+  assert.equal(normalizeOrigin(undefined), '');
+});
+
+test('CORS: allows production origin without trailing slash', async () => {
+  const server = await startServer();
+  try {
+    const r = await request(server, 'GET', '/api/health', null, {
+      Origin: 'https://focus-bridge-seven.vercel.app',
+    });
+    assert.equal(r.status, 200);
+    assert.equal(r.headers['access-control-allow-origin'], 'https://focus-bridge-seven.vercel.app');
+  } finally {
+    server.close();
+  }
+});
+
+test('CORS: allows production origin with trailing slash', async () => {
+  const server = await startServer();
+  try {
+    const r = await request(server, 'GET', '/api/health', null, {
+      Origin: 'https://focus-bridge-seven.vercel.app/',
+    });
+    assert.equal(r.status, 200);
+    assert.equal(r.headers['access-control-allow-origin'], 'https://focus-bridge-seven.vercel.app/');
+  } finally {
+    server.close();
+  }
+});
+
+test('CORS: allows legitimate FocusBridge Vercel preview deployment origins', async () => {
+  const server = await startServer();
+  try {
+    const previewOrigins = [
+      'https://focus-bridge-git-main-srinithis-projects.vercel.app',
+      'https://focus-bridge-abc123xyz.vercel.app',
+      'https://focusbridge-preview-branch.vercel.app',
+    ];
+    for (const origin of previewOrigins) {
+      const r = await request(server, 'GET', '/api/health', null, { Origin: origin });
+      assert.equal(r.status, 200, `Expected 200 for preview origin ${origin}`);
+      assert.equal(r.headers['access-control-allow-origin'], origin);
+    }
+  } finally {
+    server.close();
+  }
+});
+
+test('CORS: blocks random external origin and returns HTTP 403 instead of 500', async () => {
+  const server = await startServer();
+  try {
+    const r = await request(server, 'GET', '/api/health', null, {
+      Origin: 'https://random-origin.com',
+    });
+    assert.equal(r.status, 403, 'CORS rejection must return HTTP 403');
+    assert.ok(r.body && r.body.error, 'Response must have structured error');
+    assert.equal(r.body.error.message, 'CORS blocked for origin: https://random-origin.com');
+  } finally {
+    server.close();
+  }
+});
+
+test('CORS: blocks unrelated Vercel apps and returns HTTP 403 instead of 500', async () => {
+  const server = await startServer();
+  try {
+    const r = await request(server, 'GET', '/api/health', null, {
+      Origin: 'https://malicious-other-app.vercel.app',
+    });
+    assert.equal(r.status, 403, 'CORS rejection must return HTTP 403');
+    assert.equal(r.body.error.message, 'CORS blocked for origin: https://malicious-other-app.vercel.app');
   } finally {
     server.close();
   }

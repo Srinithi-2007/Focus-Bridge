@@ -24,6 +24,9 @@ function errorHandler(err, req, res, _next) {
   } else if (err && err.type === 'entity.parse.failed') {
     status = 400;
     message = 'Request body is not valid JSON';
+  } else if (err && typeof err.message === 'string' && err.message.startsWith('CORS blocked for origin:')) {
+    status = 403;
+    message = err.message;
   } else if (
     err &&
     (err.name === 'MongooseServerSelectionError' ||
